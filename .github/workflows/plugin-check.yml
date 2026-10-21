@@ -28,4 +28,5 @@ jobs:
           # paralyse pull requests.
           exclude-checks: |
             late_escaping
+            hidden_files
           include-experimental: true
