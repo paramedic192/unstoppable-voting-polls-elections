@@ -20,13 +20,25 @@ class UVPE_Poll {
 	 * @return array
 	 */
 	public static function get_templates() {
-		return array(
+		$templates = array(
 			'classic'    => __( 'Classic Bars', 'unstoppable-voting-polls-elections' ),
 			'ballot'     => __( 'Official Ballot', 'unstoppable-voting-polls-elections' ),
 			'cards'      => __( 'Candidate Cards', 'unstoppable-voting-polls-elections' ),
 			'compact'    => __( 'Compact List', 'unstoppable-voting-polls-elections' ),
 			'tournament' => __( 'Tournament', 'unstoppable-voting-polls-elections' ),
 		);
+		/**
+		 * Filter the registered frontend templates.
+		 *
+		 * Add-ons may register additional templates by returning
+		 * {slug => label} entries and placing a matching PHP file in
+		 * their own templates/ folder (loaded via `uvpe_template_path`).
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param array $templates slug => human label.
+		 */
+		return apply_filters( 'uvpe_templates', $templates );
 	}
 
 	/**
@@ -100,26 +112,27 @@ class UVPE_Poll {
 		$now = current_time( 'mysql' );
 
 		$insert = array(
-			'name'            => $data['name'],
-			'question'        => $data['question'],
-			'description'    => isset( $data['description'] ) ? $data['description'] : '',
-			'status'          => $data['status'],
-			'poll_type'       => $data['poll_type'],
-			'max_choices'     => $data['max_choices'],
-			'template'        => $data['template'],
-			'sort_order'      => $data['sort_order'],
-			'results_display' => $data['results_display'],
-			'results_format'  => $data['results_format'],
-			'allow_guests'    => $data['allow_guests'],
-			'block_by'        => $data['block_by'],
-			'start_date'      => $data['start_date'],
-			'end_date'        => $data['end_date'],
-			'author'          => get_current_user_id(),
-			'added_date'      => $now,
-			'modified_date'   => $now,
+			'name'                 => $data['name'],
+			'question'             => $data['question'],
+			'description'          => isset( $data['description'] ) ? $data['description'] : '',
+			'status'               => $data['status'],
+			'poll_type'            => $data['poll_type'],
+			'max_choices'          => $data['max_choices'],
+			'template'             => $data['template'],
+			'sort_order'           => $data['sort_order'],
+			'results_display'      => $data['results_display'],
+			'results_format'       => $data['results_format'],
+			'allow_guests'         => $data['allow_guests'],
+			'block_by'             => $data['block_by'],
+			'vote_revision_window' => isset( $data['vote_revision_window'] ) ? absint( $data['vote_revision_window'] ) : 0,
+			'start_date'           => $data['start_date'],
+			'end_date'             => $data['end_date'],
+			'author'               => get_current_user_id(),
+			'added_date'           => $now,
+			'modified_date'        => $now,
 		);
 
-		$formats = array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s' );
+		$formats = array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%s', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter  -- writing directly is intentional; caching not applicable here.
 		$ok = $wpdb->insert( $table, $insert, $formats );
@@ -147,24 +160,25 @@ class UVPE_Poll {
 		}
 
 		$update = array(
-			'name'            => $data['name'],
-			'question'        => $data['question'],
-			'description'    => isset( $data['description'] ) ? $data['description'] : '',
-			'status'          => $data['status'],
-			'poll_type'       => $data['poll_type'],
-			'max_choices'     => $data['max_choices'],
-			'template'        => $data['template'],
-			'sort_order'      => $data['sort_order'],
-			'results_display' => $data['results_display'],
-			'results_format'  => $data['results_format'],
-			'allow_guests'    => $data['allow_guests'],
-			'block_by'        => $data['block_by'],
-			'start_date'      => $data['start_date'],
-			'end_date'        => $data['end_date'],
-			'modified_date'   => current_time( 'mysql' ),
+			'name'                 => $data['name'],
+			'question'             => $data['question'],
+			'description'          => isset( $data['description'] ) ? $data['description'] : '',
+			'status'               => $data['status'],
+			'poll_type'            => $data['poll_type'],
+			'max_choices'          => $data['max_choices'],
+			'template'             => $data['template'],
+			'sort_order'           => $data['sort_order'],
+			'results_display'      => $data['results_display'],
+			'results_format'       => $data['results_format'],
+			'allow_guests'         => $data['allow_guests'],
+			'block_by'             => $data['block_by'],
+			'vote_revision_window' => isset( $data['vote_revision_window'] ) ? absint( $data['vote_revision_window'] ) : 0,
+			'start_date'           => $data['start_date'],
+			'end_date'             => $data['end_date'],
+			'modified_date'        => current_time( 'mysql' ),
 		);
 
-		$update_formats = array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' );
+		$update_formats = array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%s' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter  -- direct write intentional.
 		$result = $wpdb->update( $table, $update, array( 'id' => $poll_id ), $update_formats, array( '%d' ) );
@@ -200,6 +214,101 @@ class UVPE_Poll {
 		$wpdb->delete( $polls, array( 'id' => $poll_id ), array( '%d' ) );
 
 		return true;
+	}
+
+	/**
+	 * Duplicate a poll: copies the poll row and its answers into a new draft.
+	 *
+	 * The duplicate is created with status "draft", vote counts reset to zero,
+	 * and the name suffixed with " (Copy)". Votes are intentionally NOT copied.
+	 *
+	 * @param int $source_id Poll ID to duplicate.
+	 * @return int|WP_Error New poll ID on success.
+	 */
+	public static function duplicate( $source_id ) {
+		$source_id = absint( $source_id );
+		if ( $source_id <= 0 ) {
+			return new WP_Error( 'invalid_poll', __( 'Invalid poll ID.', 'unstoppable-voting-polls-elections' ) );
+		}
+
+		$source = self::get( $source_id );
+		if ( ! $source ) {
+			return new WP_Error( 'no_poll', __( 'Source poll not found.', 'unstoppable-voting-polls-elections' ) );
+		}
+
+		/**
+		 * Filter the suffix appended to the duplicate's name.
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param string $suffix Default " (Copy)".
+		 * @param object $source Source poll row.
+		 */
+		$suffix = apply_filters( 'uvpe_duplicate_name_suffix', ' ' . __( '(Copy)', 'unstoppable-voting-polls-elections' ), $source );
+
+		$data = array(
+			'name'                 => mb_substr( $source->name . $suffix, 0, 255 ),
+			'question'             => $source->question,
+			'description'          => $source->description,
+			'status'               => 'draft',
+			'poll_type'            => $source->poll_type,
+			'max_choices'          => (int) $source->max_choices,
+			'template'             => $source->template,
+			'sort_order'           => $source->sort_order,
+			'results_display'      => $source->results_display,
+			'results_format'       => $source->results_format,
+			'allow_guests'         => (int) $source->allow_guests,
+			'block_by'             => $source->block_by,
+			'vote_revision_window' => isset( $source->vote_revision_window ) ? (int) $source->vote_revision_window : 0,
+			'start_date'           => null,
+			'end_date'             => null,
+		);
+
+		/**
+		 * Filter the data used to create a duplicated poll before insert.
+		 *
+		 * Pro add-ons may use this to copy premium per-poll fields.
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param array  $data   Poll-insert data for the new copy.
+		 * @param object $source Source poll row.
+		 */
+		$data = apply_filters( 'uvpe_duplicate_poll_data', $data, $source );
+
+		$new_id = self::create( $data );
+		if ( is_wp_error( $new_id ) ) {
+			return $new_id;
+		}
+
+		// Copy answers (text, subtitle, image, sort position). Vote counts stay zero.
+		$answers = self::get_answers( $source_id, 'manual' );
+		if ( $answers ) {
+			$copy_rows = array();
+			foreach ( $answers as $a ) {
+				$copy_rows[] = array(
+					'id'            => 0, // mark as "new" row for save_answers
+					'text'          => $a->answer_text,
+					'subtitle'      => isset( $a->subtitle ) ? $a->subtitle : '',
+					'image_url'     => isset( $a->image_url ) ? $a->image_url : '',
+					'sort_position' => (int) $a->sort_position,
+				);
+			}
+			self::save_answers( $new_id, $copy_rows );
+		}
+
+		/**
+		 * Fires after a poll has been duplicated.
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param int    $new_id    New poll ID.
+		 * @param int    $source_id Original poll ID.
+		 * @param object $source    Source poll row.
+		 */
+		do_action( 'uvpe_poll_duplicated', $new_id, $source_id, $source );
+
+		return (int) $new_id;
 	}
 
 	/**
@@ -482,11 +591,24 @@ class UVPE_Poll {
 		if ( ! $poll || 'active' !== $poll->status ) {
 			return false;
 		}
-		$now = current_time( 'mysql' );
-		if ( ! empty( $poll->start_date ) && $poll->start_date > $now ) {
+		$now        = current_time( 'mysql' );
+		$start_date = isset( $poll->start_date ) ? (string) $poll->start_date : '';
+		$end_date   = isset( $poll->end_date )   ? (string) $poll->end_date   : '';
+
+		// Treat MySQL zero-dates ("0000-00-00 00:00:00") as "unset" — some older
+		// rows may have been stored that way before the datetime sanitizer was
+		// taught to return NULL for empty values.
+		if ( '0000-00-00 00:00:00' === $start_date ) {
+			$start_date = '';
+		}
+		if ( '0000-00-00 00:00:00' === $end_date ) {
+			$end_date = '';
+		}
+
+		if ( '' !== $start_date && $start_date > $now ) {
 			return false;
 		}
-		if ( ! empty( $poll->end_date ) && $poll->end_date < $now ) {
+		if ( '' !== $end_date && $end_date < $now ) {
 			return false;
 		}
 		return true;

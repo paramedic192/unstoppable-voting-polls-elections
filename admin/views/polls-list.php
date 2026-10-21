@@ -88,21 +88,43 @@ $msg_type = isset( $_GET['uvpe_msg'] ) ? sanitize_key( wp_unslash( $_GET['uvpe_m
 				$templates_labels = UVPE_Poll::get_templates();
 				$status_labels    = UVPE_Poll::get_statuses();
 				foreach ( $polls as $poll ) :
-					$edit_url    = admin_url( 'admin.php?page=' . UVPE_Admin::MENU_EDIT . '&poll_id=' . $poll->id );
-					$results_url = admin_url( 'admin.php?page=' . UVPE_Admin::MENU_RESULTS . '&poll_id=' . $poll->id );
-					$delete_url  = wp_nonce_url(
+					$edit_url      = admin_url( 'admin.php?page=' . UVPE_Admin::MENU_EDIT . '&poll_id=' . $poll->id );
+					$results_url   = admin_url( 'admin.php?page=' . UVPE_Admin::MENU_RESULTS . '&poll_id=' . $poll->id );
+					$duplicate_url = wp_nonce_url(
+						admin_url( 'admin.php?page=' . UVPE_Admin::MENU_SLUG . '&action=duplicate&poll_id=' . $poll->id ),
+						'uvpe_duplicate_poll_' . $poll->id
+					);
+					$delete_url    = wp_nonce_url(
 						admin_url( 'admin.php?page=' . UVPE_Admin::MENU_SLUG . '&action=delete&poll_id=' . $poll->id ),
 						'uvpe_delete_poll_' . $poll->id
 					);
-					$shortcode   = '[uvpe_poll id="' . $poll->id . '"]';
+					$shortcode     = '[uvpe_poll id="' . $poll->id . '"]';
+
+					// Default row actions. Add-ons can filter to inject more.
+					$row_actions = array(
+						'edit'      => '<a href="' . esc_url( $edit_url ) . '">' . esc_html__( 'Edit', 'unstoppable-voting-polls-elections' ) . '</a>',
+						'results'   => '<a href="' . esc_url( $results_url ) . '">' . esc_html__( 'Results', 'unstoppable-voting-polls-elections' ) . '</a>',
+						'duplicate' => '<a href="' . esc_url( $duplicate_url ) . '">' . esc_html__( 'Duplicate', 'unstoppable-voting-polls-elections' ) . '</a>',
+						'delete'    => '<span class="delete"><a href="' . esc_url( $delete_url ) . '" class="uvpe-delete-link">' . esc_html__( 'Delete', 'unstoppable-voting-polls-elections' ) . '</a></span>',
+					);
+					/**
+					 * Filter the per-row actions on the polls list.
+					 *
+					 * Add-ons (such as the Pro plugin) may add/remove actions.
+					 * Each value should already be an escaped `<a>` string.
+					 *
+					 * @since 2.1.0
+					 *
+					 * @param array  $row_actions Action slug => HTML.
+					 * @param object $poll        Poll row.
+					 */
+					$row_actions = apply_filters( 'uvpe_poll_row_actions', $row_actions, $poll );
 					?>
 					<tr>
 						<td>
 							<strong><a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html( $poll->name ); ?></a></strong>
 							<div class="row-actions">
-								<span><a href="<?php echo esc_url( $edit_url ); ?>"><?php esc_html_e( 'Edit', 'unstoppable-voting-polls-elections' ); ?></a> | </span>
-								<span><a href="<?php echo esc_url( $results_url ); ?>"><?php esc_html_e( 'Results', 'unstoppable-voting-polls-elections' ); ?></a> | </span>
-								<span class="delete"><a href="<?php echo esc_url( $delete_url ); ?>" class="uvpe-delete-link"><?php esc_html_e( 'Delete', 'unstoppable-voting-polls-elections' ); ?></a></span>
+								<?php echo wp_kses_post( implode( ' | ', $row_actions ) ); ?>
 							</div>
 						</td>
 						<td><?php echo esc_html( wp_trim_words( $poll->question, 12 ) ); ?></td>

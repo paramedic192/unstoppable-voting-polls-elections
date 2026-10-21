@@ -88,27 +88,80 @@ class UVPE_Vote {
 			return new WP_Error( 'already_voted', __( 'You have already voted in this poll.', 'unstoppable-voting-polls-elections' ) );
 		}
 
+		$user_id = get_current_user_id();
+
+		/**
+		 * Filter whether this user may cast this vote.
+		 *
+		 * All of free's own checks (open, guest, duplicate, max_choices) have
+		 * passed by this point. Return a WP_Error to reject with a custom
+		 * message — Pro uses this for private/password polls and role gates.
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param true|WP_Error $can        True to allow.
+		 * @param object        $poll       Poll row.
+		 * @param int[]         $answer_ids Chosen answer IDs.
+		 * @param int           $user_id    Current user ID (0 if guest).
+		 */
+		$can = apply_filters( 'uvpe_can_user_vote', true, $poll, $answer_ids, $user_id );
+		if ( is_wp_error( $can ) ) {
+			return $can;
+		}
+		if ( false === $can ) {
+			return new WP_Error( 'vote_denied', __( 'You are not allowed to vote in this poll.', 'unstoppable-voting-polls-elections' ) );
+		}
+
 		// All checks passed — record the votes.
 		$now         = current_time( 'mysql' );
-		$user_id     = get_current_user_id();
 		$ip          = self::get_client_ip();
 		$tracking_id = self::get_or_set_tracking_id();
 		$votes_table = UVPE_Schema::table( 'votes' );
 
+		/**
+		 * Fires immediately before vote rows are inserted.
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param int    $poll_id    Poll ID.
+		 * @param int[]  $answer_ids Chosen answer IDs.
+		 * @param int    $user_id    Current user ID (0 if guest).
+		 * @param object $poll       Poll row.
+		 */
+		do_action( 'uvpe_before_vote_cast', $poll_id, $answer_ids, $user_id, $poll );
+
+		$inserted_vote_ids = array();
+
 		foreach ( $answer_ids as $aid ) {
+			$row = array(
+				'poll_id'     => $poll_id,
+				'answer_id'   => $aid,
+				'user_id'     => $user_id,
+				'ip_address'  => $ip,
+				'tracking_id' => $tracking_id,
+				'added_date'  => $now,
+			);
+			/**
+			 * Filter the single-row vote data before insert.
+			 *
+			 * Pro may use this to add fields on tables it registered via
+			 * `uvpe_schema_tables`.
+			 *
+			 * @since 2.1.0
+			 *
+			 * @param array  $row  Vote-row data.
+			 * @param object $poll Poll row.
+			 * @param int    $aid  Answer ID this row is for.
+			 */
+			$row = apply_filters( 'uvpe_vote_data', $row, $poll, $aid );
+
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, PluginCheck.Security.DirectDB.UnescapedDBParameter
 			$wpdb->insert(
 				$votes_table,
-				array(
-					'poll_id'     => $poll_id,
-					'answer_id'   => $aid,
-					'user_id'     => $user_id,
-					'ip_address'  => $ip,
-					'tracking_id' => $tracking_id,
-					'added_date'  => $now,
-				),
+				$row,
 				array( '%d', '%d', '%d', '%s', '%s', '%s' )
 			);
+			$inserted_vote_ids[] = (int) $wpdb->insert_id;
 		}
 
 		// Set the cookie marker.
@@ -117,6 +170,19 @@ class UVPE_Vote {
 		// Recalculate counts.
 		UVPE_Poll::recalc_answer_votes( $poll_id );
 		UVPE_Poll::recalc_total_votes( $poll_id );
+
+		/**
+		 * Fires after vote rows are inserted and totals recalculated.
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param int    $poll_id           Poll ID.
+		 * @param int[]  $answer_ids        Chosen answer IDs.
+		 * @param int    $user_id           Current user ID (0 if guest).
+		 * @param int[]  $inserted_vote_ids New vote row IDs.
+		 * @param object $poll              Poll row.
+		 */
+		do_action( 'uvpe_after_vote_cast', $poll_id, $answer_ids, $user_id, $inserted_vote_ids, $poll );
 
 		return true;
 	}

@@ -81,8 +81,12 @@ $results_display  = $is_new ? 'after_vote' : $poll->results_display;
 $results_format   = $is_new ? 'both' : $poll->results_format;
 $allow_guests     = $is_new ? 0 : (int) $poll->allow_guests;
 $block_by         = $is_new ? 'cookie' : $poll->block_by;
+$revision_window  = $is_new ? 0 : ( isset( $poll->vote_revision_window ) ? (int) $poll->vote_revision_window : 0 );
 $start_date       = $is_new ? '' : $poll->start_date;
 $end_date         = $is_new ? '' : $poll->end_date;
+// Treat MySQL zero-dates as empty so the datetime-local input renders blank.
+if ( '0000-00-00 00:00:00' === $start_date ) { $start_date = ''; }
+if ( '0000-00-00 00:00:00' === $end_date )   { $end_date   = ''; }
 ?>
 <div class="wrap uvpe-wrap">
 	<h1 class="wp-heading-inline">
@@ -197,6 +201,19 @@ $end_date         = $is_new ? '' : $poll->end_date;
 							<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $block_by, $key ); ?>><?php echo esc_html( $label ); ?></option>
 						<?php endforeach; ?>
 					</select>
+
+					<label for="uvpe-revision-window" class="uvpe-label"><?php esc_html_e( 'Allow voters to change their vote within (minutes)', 'unstoppable-voting-polls-elections' ); ?></label>
+					<input type="number"
+						id="uvpe-revision-window"
+						name="vote_revision_window"
+						value="<?php echo esc_attr( $revision_window ); ?>"
+						min="0"
+						max="10080"
+						step="1"
+						class="small-text">
+					<p class="description" style="margin-top:4px;">
+						<?php esc_html_e( '0 locks each vote in permanently. Set a number of minutes to give voters a window to correct a mistaken choice. Capped at 10080 (one week).', 'unstoppable-voting-polls-elections' ); ?>
+					</p>
 				</div>
 
 				<div class="uvpe-card-panel">

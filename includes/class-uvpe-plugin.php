@@ -37,12 +37,25 @@ class UVPE_Plugin {
 	 * Wire up the subsystems.
 	 */
 	private function __construct() {
+		// Run any pending schema migrations on load. Cheap: skips when up to date.
+		add_action( 'plugins_loaded', array( 'UVPE_Schema', 'maybe_upgrade' ), 5 );
+
 		new UVPE_Shortcode();
 		new UVPE_Ajax();
 
 		if ( is_admin() ) {
 			new UVPE_Admin();
 		}
+
+		/**
+		 * Fires after the plugin's core subsystems are wired up.
+		 *
+		 * Add-ons (such as the Pro plugin) should hook here to register their
+		 * own classes, taxonomies, REST routes, or admin pages.
+		 *
+		 * @since 2.1.0
+		 */
+		do_action( 'uvpe_loaded' );
 	}
 
 	/**

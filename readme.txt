@@ -4,7 +4,7 @@ Tags: polls, voting, elections, ballot, surveys
 Requires at least: 5.8
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.0.7
+Stable tag: 2.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -128,6 +128,13 @@ No data ever leaves your site. Deleting the plugin from the Plugins screen remov
 
 == Changelog ==
 
+= 2.1.0 =
+* **New: Duplicate poll** — "Duplicate" row action on the polls list copies a poll (and its answer options, images, and settings) into a new draft so you can clone recurring votes without rebuilding them. Votes are not copied.
+* **New: Extensibility hooks** — Added a stable set of actions and filters (`uvpe_loaded`, `uvpe_can_user_vote`, `uvpe_before_vote_cast`, `uvpe_after_vote_cast`, `uvpe_vote_data`, `uvpe_templates`, `uvpe_poll_row_actions`, `uvpe_schema_tables`, `uvpe_duplicate_poll_data`, `uvpe_poll_duplicated`, `uvpe_schema_upgraded`) so companion add-ons can extend the plugin without modifying its code.
+* **New: Database schema v2** — Added a `vote_revision_window` field to polls (minutes a voter has to change their vote after submitting) and a `revised_at` timestamp to votes. The admin field is live on the Settings panel of each poll; a frontend "change my vote" flow follows in 2.2.0.
+* **Fix: Blank scheduling dates were being saved as MySQL zero-dates** (`0000-00-00 00:00:00`), which caused the plugin to treat the poll as "ended" and hide the vote form, even though the Start/End date fields are documented as optional. Blank dates are now stored as proper SQL NULLs, and `is_open()` and the edit screen defensively treat any lingering zero-dates as empty — so previously-broken polls become votable again on this release without needing a fresh save.
+* **Internal: Automatic schema migration** — Existing installs upgrade transparently on first load; no manual action required.
+
 = 2.0.7 =
 * Added a "Privacy" section to the readme describing exactly what data the plugin stores locally (vote records, optional IPs/cookies for duplicate-vote prevention) and confirming no data leaves the site.
 * No code changes.
@@ -181,6 +188,9 @@ No data ever leaves your site. Deleting the plugin from the Plugins screen remov
 * Shortcode: `[uvpe_poll id="N"]`.
 
 == Upgrade Notice ==
+
+= 2.1.0 =
+Adds the Duplicate-poll action, a Pro-ready extensibility hook set, and the schema groundwork for the upcoming vote-revision window. Safe to upgrade — existing polls, votes, and settings are preserved.
 
 = 2.0.7 =
 Added a Privacy section to the readme. No code changes.

@@ -267,10 +267,11 @@ class UVPE_Admin {
 			'sort_order'   => isset( $post['sort_order'] ) ? sanitize_key( $post['sort_order'] ) : 'manual',
 			'results_display' => isset( $post['results_display'] ) ? sanitize_key( $post['results_display'] ) : 'after_vote',
 			'results_format'  => isset( $post['results_format'] ) ? sanitize_key( $post['results_format'] ) : 'both',
-			'allow_guests' => ! empty( $post['allow_guests'] ) ? 1 : 0,
-			'block_by'     => isset( $post['block_by'] ) ? sanitize_key( $post['block_by'] ) : 'cookie',
-			'start_date'   => $this->sanitize_datetime( isset( $post['start_date'] ) ? $post['start_date'] : '' ),
-			'end_date'     => $this->sanitize_datetime( isset( $post['end_date'] ) ? $post['end_date'] : '' ),
+			'allow_guests'         => ! empty( $post['allow_guests'] ) ? 1 : 0,
+			'block_by'             => isset( $post['block_by'] ) ? sanitize_key( $post['block_by'] ) : 'cookie',
+			'vote_revision_window' => isset( $post['vote_revision_window'] ) ? absint( $post['vote_revision_window'] ) : 0,
+			'start_date'           => $this->sanitize_datetime( isset( $post['start_date'] ) ? $post['start_date'] : '' ),
+			'end_date'             => $this->sanitize_datetime( isset( $post['end_date'] ) ? $post['end_date'] : '' ),
 		);
 
 		// Strict whitelist enforcement.
@@ -303,6 +304,13 @@ class UVPE_Admin {
 		}
 		if ( ! in_array( $data['block_by'], $block_keys, true ) ) {
 			$data['block_by'] = 'cookie';
+		}
+		// Clamp vote-revision window (minutes). 0 = disabled, hard max 1 week.
+		if ( $data['vote_revision_window'] < 0 ) {
+			$data['vote_revision_window'] = 0;
+		}
+		if ( $data['vote_revision_window'] > 10080 ) {
+			$data['vote_revision_window'] = 10080;
 		}
 
 		return $data;
@@ -346,11 +354,11 @@ class UVPE_Admin {
 	private function sanitize_datetime( $value ) {
 		$value = trim( (string) $value );
 		if ( '' === $value ) {
-			return '';
+			return null;
 		}
 		$ts = strtotime( $value );
 		if ( false === $ts ) {
-			return '';
+			return null;
 		}
 		return gmdate( 'Y-m-d H:i:s', $ts );
 	}
@@ -397,6 +405,32 @@ class UVPE_Admin {
 				UVPE_Poll::delete( $poll_id );
 				set_transient( 'uvpe_admin_msg_' . get_current_user_id(), __( 'Poll deleted.', 'unstoppable-voting-polls-elections' ), 60 );
 				wp_safe_redirect( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&uvpe_msg=success' ) );
+				exit;
+			}
+		}
+
+		// Handle a GET-based duplicate link (with nonce).
+		if ( isset( $_GET['action'], $_GET['poll_id'] ) && 'duplicate' === $_GET['action'] ) {
+			$nonce   = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+			$poll_id = absint( wp_unslash( $_GET['poll_id'] ) );
+			if ( wp_verify_nonce( $nonce, 'uvpe_duplicate_poll_' . $poll_id ) ) {
+				$new_id = UVPE_Poll::duplicate( $poll_id );
+				if ( is_wp_error( $new_id ) ) {
+					set_transient(
+						'uvpe_admin_msg_' . get_current_user_id(),
+						$new_id->get_error_message(),
+						60
+					);
+					wp_safe_redirect( admin_url( 'admin.php?page=' . self::MENU_SLUG . '&uvpe_msg=error' ) );
+				} else {
+					set_transient(
+						'uvpe_admin_msg_' . get_current_user_id(),
+						__( 'Poll duplicated — edit the copy to adjust it.', 'unstoppable-voting-polls-elections' ),
+						60
+					);
+					// Jump straight to the new draft so the user can tweak it.
+					wp_safe_redirect( admin_url( 'admin.php?page=' . self::MENU_EDIT . '&poll_id=' . (int) $new_id . '&uvpe_msg=success' ) );
+				}
 				exit;
 			}
 		}
