@@ -23,10 +23,16 @@ jobs:
         uses: wordpress/plugin-check-action@v1
         with:
           build-dir: './'
-          # Fail on ERROR-level findings; let warnings be visible but
-          # non-blocking so false-positives (see learnings.md) don't
-          # paralyse pull requests.
           exclude-checks: |
             late_escaping
-            hidden_files
+          exclude-files: |
+            .gitattributes
+            .gitignore
+            .distignore
+            .github
+            README.md
+            SECURITY.md
+            CONTRIBUTING.md
+            CHANGELOG.md
           include-experimental: true
+
