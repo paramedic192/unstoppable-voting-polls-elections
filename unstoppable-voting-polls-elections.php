@@ -11,7 +11,7 @@
  * Text Domain: unstoppable-voting-polls-elections
  * Domain Path: /languages
  * Requires at least: 5.8
- * Tested up to: 7.0
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  *
  * @package Unstoppable_Voting_Polls_Elections
